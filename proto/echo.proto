@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+// Contract for the part 1.3 streaming RPC echo service.
+package echo.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "lab1/internal/echopb;echopb";
+
+// EchoRequest is a single message in the client's outbound stream.
+message EchoRequest {
+  // Monotonically increasing sequence number assigned by the client. The server
+  // returns it unchanged so ordering can be verified (requirement 3.5).
+  uint64 seq = 1;
+  // Arbitrary client text, e.g. "Hello 42".
+  string payload = 2;
+}
+
+// EchoResponse is a single message in the server's outbound stream.
+message EchoResponse {
+  // The seq copied verbatim from the corresponding EchoRequest.
+  uint64 seq = 1;
+  // The echoed text, prefixed with "ECHO: ".
+  string payload = 2;
+  // Server wall-clock time carried as a structured field, not as text
+  // (requirement 3.4).
+  google.protobuf.Timestamp server_time = 3;
+}
+
+// EchoService exposes a single bidirectional streaming method: the client sends
+// a stream of EchoRequest and concurrently receives a stream of EchoResponse
+// (requirements 3.1, 3.2, 3.8).
+service EchoService {
+  rpc EchoStream(stream EchoRequest) returns (stream EchoResponse);
+}

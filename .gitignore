@@ -1,0 +1,22 @@
+# Build output
+/bin/
+*.exe
+*.test
+*.out
+
+# Go
+/vendor/
+
+# Benchmark artefacts that are regenerated on every run
+/results/raw/
+/results/logs/
+
+# Python venv for the plotting script
+/.venv/
+__pycache__/
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
