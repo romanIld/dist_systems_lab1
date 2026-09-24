@@ -1,0 +1,18 @@
+# Scenario: 1.1 blocking (thread per connection) server in its own container, a client checks it over the network.
+#   docker compose -f compose.smoke-threading.yaml up --build --abort-on-container-exit --exit-code-from client
+#   docker compose -f compose.smoke-threading.yaml down
+
+name: lab1-smoke-threading
+
+services:
+  server:
+    build: .
+    image: lab1-echo
+    command: server-threading -addr :9101
+    ports: ["9101:9101"]
+
+  client:
+    build: .
+    image: lab1-echo
+    command: client-tcp -addr server:9101 -messages 100 -concurrency 10
+    depends_on: [server]

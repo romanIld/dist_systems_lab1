@@ -17,3 +17,6 @@
 *.swp
 .DS_Store
 /scripts/
+# Linux benchmark run from compose.yaml (raw data and logs)
+/results/linux/raw/
+/results/linux/logs/

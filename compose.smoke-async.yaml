@@ -1,0 +1,18 @@
+# Scenario: 1.2 event-loop (async) server in its own container, a client checks it over the network.
+#   docker compose -f compose.smoke-async.yaml up --build --abort-on-container-exit --exit-code-from client
+#   docker compose -f compose.smoke-async.yaml down
+
+name: lab1-smoke-async
+
+services:
+  server:
+    build: .
+    image: lab1-echo
+    command: server-async -addr :9102
+    ports: ["9102:9102"]
+
+  client:
+    build: .
+    image: lab1-echo
+    command: client-tcp -addr server:9102 -messages 100 -concurrency 10
+    depends_on: [server]

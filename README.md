@@ -158,6 +158,38 @@ go test ./...
 Покрывают формат протокола (`internal/protocol`) и расчёт статистики
 `avg/min/max/p95/throughput` (`internal/metrics`).
 
+## Проверка в Docker (Linux)
+
+[`Dockerfile`](Dockerfile) собирает все бинарники в образ `lab1-echo`. Каждый
+сценарий описан отдельным compose-файлом:
+
+| Файл | Сценарий |
+|------|----------|
+| [`compose.test.yaml`](compose.test.yaml) | `go vet` + юнит-тесты |
+| [`compose.smoke-threading.yaml`](compose.smoke-threading.yaml) | сервер 1.1 в отдельном контейнере, клиент проверяет его по сети |
+| [`compose.smoke-async.yaml`](compose.smoke-async.yaml) | то же для сервера 1.2 |
+| [`compose.smoke-grpc.yaml`](compose.smoke-grpc.yaml) | то же для сервера 1.3 |
+| [`compose.bench.yaml`](compose.bench.yaml) | полная сетка бенчмарка, результаты в `results/linux/` |
+
+```
+docker compose -f compose.test.yaml run --rm test
+
+docker compose -f compose.smoke-threading.yaml up --build --abort-on-container-exit --exit-code-from client
+docker compose -f compose.smoke-async.yaml up --build --abort-on-container-exit --exit-code-from client
+docker compose -f compose.smoke-grpc.yaml up --build --abort-on-container-exit --exit-code-from client
+
+docker compose -f compose.bench.yaml run --rm benchmark
+```
+
+В smoke-сценарии сервер стартует первым (`depends_on`), после завершения
+клиента оба контейнера останавливаются, код выхода команды - код выхода
+клиента (0 - все ответы получены). Удалить остановленные контейнеры:
+`docker compose -f <файл> down`.
+Бенчмарк сам запускает серверы и снимает их CPU/RSS по PID, поэтому работает
+в одном контейнере. Параметры передаются после имени сервиса, например
+`docker compose -f compose.bench.yaml run --rm benchmark benchmark -bin /app/bin -out /results -concurrency 1,10`
+(в Git Bash - с `MSYS_NO_PATHCONV=1`, иначе пути `/app/bin` будут искажены).
+
 ## Структура
 
 ```

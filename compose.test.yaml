@@ -1,0 +1,18 @@
+# Scenario: go vet + unit tests.
+#   docker compose -f compose.test.yaml run --rm test
+
+name: lab1-test
+
+services:
+  test:
+    image: golang:1.25-alpine
+    working_dir: /src
+    volumes:
+      - .:/src
+      - gomod:/go/pkg/mod
+    environment:
+      CGO_ENABLED: "0"
+    command: sh -c "go vet ./... && go test -count=1 ./..."
+
+volumes:
+  gomod:
