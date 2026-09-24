@@ -15,18 +15,8 @@
 
 ## Требования
 
-- Go 1.25+ (версия зафиксирована в `go.mod`, тулчейн подтягивается автоматически)
-- Python 3.9+ с `matplotlib` - только для построения графиков
-  (`pip install -r scripts/requirements.txt`)
-- gRPC-код в [`internal/echopb`](internal/echopb) уже сгенерирован и лежит в
-  репозитории. Перегенерация (необязательна) требует `buf`, `protoc-gen-go`,
-  `protoc-gen-go-grpc`:
-  ```
-  go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-  go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-  go install github.com/bufbuild/buf/cmd/buf@latest
-  buf generate
-  ```
+Docker с Compose v2 (`docker compose`). Go и прочие инструменты
+локально не нужны - сборка и запуск идут в контейнерах.
 
 ## Внешние библиотеки
 
@@ -55,14 +45,6 @@
 - **Высокоточный таймер** (`internal/hrtime`) - `QueryPerformanceCounter` через
   `syscall` на Windows, `time` на прочих ОС.
 
-Инструменты сборки (в бинарники не входят, нужны только для `buf generate`):
-
-| Инструмент | Зачем |
-|------------|-------|
-| `github.com/bufbuild/buf` | Компиляция `proto/echo.proto` без установки `protoc`. |
-| `google.golang.org/protobuf/cmd/protoc-gen-go` | Генерация Go-структур сообщений из контракта. |
-| `google.golang.org/grpc/cmd/protoc-gen-go-grpc` | Генерация Go-кода клиента/сервера gRPC из контракта. |
-
 Python (только для графиков, к Go-коду отношения не имеет):
 
 | Пакет | Зачем |
@@ -74,91 +56,7 @@ Python (только для графиков, к Go-коду отношения 
 `QueryPerformanceCounter` в `internal/hrtime`), `flag`, `log`, `sync`,
 `sync/atomic`, `time`.
 
-## Сборка
-
-```
-# Windows (PowerShell)
-powershell -File scripts/build.ps1
-
-# Linux/macOS
-for c in server-threading server-async server-grpc client-tcp client-grpc benchmark; do
-  go build -o bin/ ./cmd/$c
-done
-```
-
-Бинарники складываются в `bin/`.
-
-> На Windows каждый бинарник собирается отдельной командой и с повторными
-> попытками: `go build ./...` для нескольких `main`-пакетов конфликтует на общем
-> временном файле, а антивирус может кратко удерживать только что записанный
-> `.exe`.
-
-## Запуск вручную
-
-```
-# 1.1 - блокирующий сервер
-bin/server-threading -addr :9101
-bin/client-tcp -addr 127.0.0.1:9101 -messages 1000 -concurrency 100
-
-# 1.2 - асинхронный сервер (4 событийных цикла)
-bin/server-async -addr :9102 -loops 4
-bin/client-tcp -addr 127.0.0.1:9102 -messages 1000 -concurrency 500
-
-# 1.3 - gRPC потоковый сервер
-bin/server-grpc -addr :9103
-bin/client-grpc -addr 127.0.0.1:9103 -messages 1000 -streams 100
-```
-
-Каждый клиент печатает статистику:
-
-```
-Messages sent: 100000
-Average RTT: 1.234 ms
-Min RTT: 0.085 ms
-Max RTT: 12.900 ms
-P95 RTT: 3.100 ms
-Total time: 2100.50 ms
-Throughput: 47600.0 msg/s
-```
-
-Флаг `-json` у клиентов выдаёт ту же статистику одной JSON-строкой (используется
-оркестратором `benchmark`).
-
-## Полный прогон измерений (Задание 1.4)
-
-```
-# Windows: сборка + тесты + бенчмарк + графики
-powershell -File scripts/all.ps1
-
-# или только бенчмарк
-bin/benchmark -bin bin -out results \
-  -messages 10,100,1000 -concurrency 1,10,50,100,200
-
-# графики из results/summary.csv
-python scripts/plot.py
-```
-
-Оркестратор для каждого подхода поднимает сервер, прогоняет сетку
-`messages x concurrency`, снимает CPU/RSS процесса сервера и пишет:
-
-- `results/raw/bench-<timestamp>.csv` - все замеры;
-- `results/summary.csv` - последний прогон (вход для графиков);
-- `results/logs/<approach>.log` - вывод серверов;
-- `results/*.png` - графики RTT и Throughput.
-
-Если порт занят зависшим сервером от прошлого запуска:
-`powershell -File scripts/kill-servers.ps1`.
-
-## Тесты
-
-```
-go test ./...
-```
-
-Покрывают формат протокола (`internal/protocol`) и расчёт статистики
-`avg/min/max/p95/throughput` (`internal/metrics`).
-
-## Проверка в Docker (Linux)
+## Сборка и запуск (Docker)
 
 [`Dockerfile`](Dockerfile) собирает все бинарники в образ `lab1-echo`. Каждый
 сценарий описан отдельным compose-файлом:
@@ -169,7 +67,6 @@ go test ./...
 | [`compose.smoke-threading.yaml`](compose.smoke-threading.yaml) | сервер 1.1 в отдельном контейнере, клиент проверяет его по сети |
 | [`compose.smoke-async.yaml`](compose.smoke-async.yaml) | то же для сервера 1.2 |
 | [`compose.smoke-grpc.yaml`](compose.smoke-grpc.yaml) | то же для сервера 1.3 |
-| [`compose.bench.yaml`](compose.bench.yaml) | полная сетка бенчмарка, результаты в `results/linux/` |
 
 ```
 docker compose -f compose.test.yaml run --rm test
@@ -177,18 +74,24 @@ docker compose -f compose.test.yaml run --rm test
 docker compose -f compose.smoke-threading.yaml up --build --abort-on-container-exit --exit-code-from client
 docker compose -f compose.smoke-async.yaml up --build --abort-on-container-exit --exit-code-from client
 docker compose -f compose.smoke-grpc.yaml up --build --abort-on-container-exit --exit-code-from client
-
-docker compose -f compose.bench.yaml run --rm benchmark
 ```
 
 В smoke-сценарии сервер стартует первым (`depends_on`), после завершения
 клиента оба контейнера останавливаются, код выхода команды - код выхода
 клиента (0 - все ответы получены). Удалить остановленные контейнеры:
 `docker compose -f <файл> down`.
-Бенчмарк сам запускает серверы и снимает их CPU/RSS по PID, поэтому работает
-в одном контейнере. Параметры передаются после имени сервиса, например
-`docker compose -f compose.bench.yaml run --rm benchmark benchmark -bin /app/bin -out /results -concurrency 1,10`
-(в Git Bash - с `MSYS_NO_PATHCONV=1`, иначе пути `/app/bin` будут искажены).
+
+Клиент печатает статистику (пример для `compose.smoke-threading.yaml`):
+
+```
+Messages sent: 1000
+Average RTT: 0.608 ms
+Min RTT: 0.039 ms
+Max RTT: 4.428 ms
+P95 RTT: 1.348 ms
+Total time: 63.30 ms
+Throughput: 15798.9 msg/s
+```
 
 ## Структура
 
