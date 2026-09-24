@@ -1,2 +1,0 @@
-# Charting dependency for scripts/plot.py (not needed to build or run the Go code).
-matplotlib>=3.7
